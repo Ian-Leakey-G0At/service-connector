@@ -2,7 +2,7 @@ import { Webhooks } from '@polar-sh/nextjs'
 import { headers } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-const wh = new Webhooks(process.env.POLAR_WEBHOOK_SECRET || '')
+const wh: any = Webhooks({ secret: process.env.POLAR_WEBHOOK_SECRET || '' } as any)
 
 export async function POST(req: Request) {
   console.log('INFO: Webhook received. Verifying signature...')
