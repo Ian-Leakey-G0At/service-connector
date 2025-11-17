@@ -77,11 +77,17 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify(internalPayload),
       })
 
-      if (response.ok) {
-        console.log(`SUCCESS: Upstream server at ${targetWebhookUrl} responded with status ${response.status}.`)
+      // We check for the specific 2xx success codes our upstream servers should return.
+      if (response.status === 200 || response.status === 201) {
+        console.log(`SUCCESS: Upstream server at ${targetWebhookUrl} confirmed successful fulfillment with status ${response.status}.`);
       } else {
-        const responseBody = await response.text()
-        console.error(`ERROR: Upstream server at ${targetWebhookUrl} failed with status ${response.status}. Response: ${responseBody}.`)
+        // Any other status is a potential problem. We will log it with higher severity.
+        const responseBody = await response.text();
+        console.error(`CRITICAL_UPSTREAM_FAILURE: Upstream server at ${targetWebhookUrl} responded with a non-success status: ${response.status}.`);
+        console.error(`UPSTREAM_RESPONSE: ${responseBody}`);
+
+        // OPTIONAL ADVANCED ACTION: You could add logic here to trigger an alert (e.g., via a separate logging service)
+        // if the status is 404, which indicates a permanent configuration error.
       }
     } catch (err) {
       console.error('ERROR: Processing/forwarding of order.paid event failed.', err)
