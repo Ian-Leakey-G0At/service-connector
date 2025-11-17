@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(req: NextRequest) {
+  // This initial block remains the same.
   console.log('INFO: Webhook received. Bypassing signature verification as per "Trust but Verify" protocol.')
 
   let event: any;
@@ -14,25 +15,48 @@ export async function POST(req: NextRequest) {
 
   console.log(`INFO: Event received for type: ${event.type || 'unknown'}.`)
 
+  // The Triage: Act only on the signal we care about.
   if (event.type === 'order.paid') {
     try {
       console.log(`INFO: Translating 'order.paid' event for forwarding.`)
 
-      // --- START OF THE CRITICAL CORRECTION ---
-      // The payload is in `event.data`, not `event.payload`.
       const payload = event.data
-      const customerEmail = payload?.customer?.email // The email is nested inside the `customer` object.
+      const customerEmail = payload?.customer?.email
       const courseId = payload?.product?.metadata?.fulfillment_id
-      // --- END OF THE CRITICAL CORRECTION ---
 
-      // Runtime validation remains critical.
       if (typeof customerEmail !== 'string' || typeof courseId !== 'string') {
-        console.error('ERROR: Runtime validation failed. Webhook payload for order.paid has a malformed or missing structure.')
-        // For diagnostics, let's log what we actually received
-        console.log('DIAGNOSTIC: Received customerEmail ->', customerEmail);
-        console.log('DIAGNOSTIC: Received courseId ->', courseId);
+        console.error('ERROR: Runtime validation failed. Webhook payload has a malformed or missing structure.')
         return new NextResponse('Webhook processed, but payload was malformed.', { status: 200 })
       }
+
+      // --- START OF THE CRITICAL UPGRADE ---
+
+      let targetWebhookUrl: string | undefined;
+      let internalApiKey: string | undefined;
+
+      console.log(`ROUTING: Inspecting fulfillment_id: [${courseId}]`);
+
+      // ROUTING LOGIC: The intelligent decision-making block.
+      if (courseId.startsWith('guy-fawkes-')) {
+        targetWebhookUrl = process.env.REVENGE_MONEY_WEBHOOK_URL;
+        internalApiKey = process.env.REVENGE_MONEY_INTERNAL_SECRET_KEY;
+        console.log(`ROUTING: Detected RevengeMoney product. Routing to designated upstream.`);
+      } else if (courseId.startsWith('eggplant-method-')) {
+        targetWebhookUrl = process.env.EGGPLANT_METHOD_WEBHOOK_URL;
+        internalApiKey = process.env.EGGPLANT_METHOD_INTERNAL_SECRET_KEY;
+        console.log(`ROUTING: Detected Eggplant Method product. Routing to designated upstream.`);
+      } else {
+        console.warn(`ROUTING_FAIL: Unrecognized fulfillment_id prefix: [${courseId}]. Halting process.`);
+        return new NextResponse('OK', { status: 200 }); // Still return 200 to Polar
+      }
+
+      // Final check to ensure the environment is correctly configured for the chosen route.
+      if (!targetWebhookUrl || !internalApiKey) {
+          console.error(`CRITICAL CONFIGURATION ERROR: Missing webhook URL or API key for route target. Check environment variables.`);
+          return new NextResponse('Internal server configuration error.', { status: 500 });
+      }
+
+      // --- END OF THE CRITICAL UPGRADE ---
 
       const internalPayload = {
         eventType: 'FULFILLMENT_REQUEST',
@@ -42,22 +66,22 @@ export async function POST(req: NextRequest) {
         },
       }
 
-      console.log(`INFO: Forwarding fulfillment request for ${courseId} to upstream server.`)
+      console.log(`INFO: Forwarding fulfillment request for ${courseId} to: ${targetWebhookUrl}`);
 
-      const response = await fetch(process.env.REVENGE_MONEY_WEBHOOK_URL!, {
+      const response = await fetch(targetWebhookUrl, { // Use the dynamically determined URL
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${process.env.INTERNAL_API_SECRET_KEY!}`,
+          Authorization: `Bearer ${internalApiKey}`, // Use the dynamically determined API key
         },
         body: JSON.stringify(internalPayload),
       })
 
       if (response.ok) {
-        console.log(`SUCCESS: Upstream server responded with status ${response.status}.`)
+        console.log(`SUCCESS: Upstream server at ${targetWebhookUrl} responded with status ${response.status}.`)
       } else {
         const responseBody = await response.text()
-        console.error(`ERROR: Upstream server failed with status ${response.status}. Response: ${responseBody}.`)
+        console.error(`ERROR: Upstream server at ${targetWebhookUrl} failed with status ${response.status}. Response: ${responseBody}.`)
       }
     } catch (err) {
       console.error('ERROR: Processing/forwarding of order.paid event failed.', err)
@@ -66,5 +90,6 @@ export async function POST(req: NextRequest) {
     console.log(`WARN: Ignoring non-actionable event type ${event.type}.`)
   }
 
+  // Acknowledgment is still crucial.
   return new NextResponse('OK', { status: 200 })
 }
