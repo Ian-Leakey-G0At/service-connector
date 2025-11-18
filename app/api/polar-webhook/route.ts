@@ -24,9 +24,19 @@ export async function POST(req: NextRequest) {
       const customerEmail = payload?.customer?.email
       const courseId = payload?.product?.metadata?.fulfillment_id
 
-      if (typeof customerEmail !== 'string' || typeof courseId !== 'string') {
-        console.error('ERROR: Runtime validation failed. Webhook payload has a malformed or missing structure.')
-        return new NextResponse('Webhook processed, but payload was malformed.', { status: 200 })
+      // Runtime Validation Block - ensuring the payload has the data we need.
+      if (typeof customerEmail !== 'string') {
+        console.error('ERROR: Runtime validation failed. The customer email was missing or not a string.');
+        console.error('DIAGNOSTIC REASON: Expected `event.data.customer.email` to be a string.');
+        console.error('PAYLOAD_CONTEXT:', JSON.stringify(payload?.customer, null, 2));
+        return new NextResponse('Webhook processed, but payload was malformed.', { status: 200 });
+      }
+
+      if (typeof courseId !== 'string') {
+        console.error('ERROR: Runtime validation failed. The fulfillment_id was missing or not a string.');
+        console.error('DIAGNOSTIC REASON: Expected `event.data.product.metadata.fulfillment_id` to be a string.');
+        console.error('PAYLOAD_CONTEXT:', JSON.stringify(payload?.product?.metadata, null, 2));
+        return new NextResponse('Webhook processed, but payload was malformed.', { status: 200 });
       }
 
       // --- START OF THE CRITICAL UPGRADE ---
@@ -79,15 +89,15 @@ export async function POST(req: NextRequest) {
 
       // We check for the specific 2xx success codes our upstream servers should return.
       if (response.status === 200 || response.status === 201) {
-        console.log(`SUCCESS: Upstream server at ${targetWebhookUrl} confirmed successful fulfillment with status ${response.status}.`);
+        console.log(`SUCCESS: Upstream server at ${targetWebhookUrl} confirmed successful fulfillment for course [${courseId}] with status ${response.status}.`);
       } else {
         // Any other status is a potential problem. We will log it with higher severity.
         const responseBody = await response.text();
-        console.error(`CRITICAL_UPSTREAM_FAILURE: Upstream server at ${targetWebhookUrl} responded with a non-success status: ${response.status}.`);
-        console.error(`UPSTREAM_RESPONSE: ${responseBody}`);
-
-        // OPTIONAL ADVANCED ACTION: You could add logic here to trigger an alert (e.g., via a separate logging service)
-        // if the status is 404, which indicates a permanent configuration error.
+        console.error(`CRITICAL_UPSTREAM_FAILURE: The fulfillment request for course [${courseId}] failed.`);
+        console.error(`  - Target URL: ${targetWebhookUrl}`);
+        console.error(`  - HTTP Status: ${response.status}`);
+        console.error(`  - Upstream Response: ${responseBody}`);
+        console.error(`  - Sent Payload: ${JSON.stringify(internalPayload, null, 2)}`);
       }
     } catch (err) {
       console.error('ERROR: Processing/forwarding of order.paid event failed.', err)
