@@ -1,51 +1,55 @@
-# Service Connector: The Intelligent Fulfillment Router
+# Fortress `service-connector`: The Intelligent Fulfillment Router
 
-## Core Mission
+## I. The Strategic Mandate
 
-`service-connector` is a headless, high-performance webhook intermediary. Its primary role is to act as an **Intelligent Fulfillment Router**. It receives signed webhooks from our public payment provider (Polar.sh), verifies their authenticity, translates them into a generic internal format, and securely forwards them to the appropriate upstream fulfillment service (`RevengeMoney` or `eggplant-method`) based on the product's `fulfillment_id` metadata.
+`service-connector` is a silent, headless fortress that serves a single, critical function in our operational architecture: it acts as a high-performance **Intelligent Fulfillment Router**.
 
-This service is designed to be:
-*   **Silent:** It has no user interface.
-*   **Transient:** It is stateless and does not persist any data.
-*   **Specialized:** Its sole purpose is to route `order.paid` webhooks.
-*   **Agnostic:** The outgoing message format is generic, allowing for new, unaware upstream services to be added in the future.
+Its mission is to stand as a secure and discreet intermediary between the public-facing world and our private, internal services. It receives sensitive `order.paid` webhooks from our payment partner (Polar.sh), translates them into a standardized internal format, and routes them with precision to the correct upstream fortress—either `RevengeMoney` or `eggplant-method`.
 
-## How It Works
+This fortress operates on four core principles:
+*   **Silence:** It presents no user interface to the outside world.
+*   **Transience:** It is entirely stateless, holding no data after a transaction is processed.
+*   **Specialization:** It performs one function—routing—and does it perfectly.
+*   **Agnosticism:** Its internal message format is generic, ensuring upstream services remain decoupled from the payment provider.
 
-1.  **Receives Webhook:** A single API route (`/app/api/polar-webhook/route.ts`) listens for incoming POST requests from Polar.sh.
-2.  **Verifies & Parses:** The service bypasses signature verification under the "Trust but Verify" protocol and parses the JSON payload.
-3.  **Routes by Prefix:** It inspects the `fulfillment_id` field within the product metadata.
-    *   If the ID starts with `guy-fawkes-`, it forwards the request to the `RevengeMoney` service.
-    *   If the ID starts with `eggplant-method-`, it forwards the request to the `Eggplant Method` service.
-4.  **Forwards Securely:** The service constructs a standardized `FULFILLMENT_REQUEST` and sends it to the target's webhook URL, authenticating with a shared secret (internal API key).
-5.  **Logs Intelligently:** It logs the outcome of the forwarding attempt, distinguishing between a successful hand-off (`200 OK`, `201 Created`) and a `CRITICAL_UPSTREAM_FAILURE` (any other status code), providing high-fidelity intelligence for diagnostics.
+## II. The Routing Mechanism
 
-## Environment Variables
+The core logic resides in a single API route (`/app/api/polar-webhook/route.ts`) that executes the following sequence:
 
-This service requires the following environment variables to be set. See `.env.example` for a template.
+1.  **Receipt & Triage:** The route listens for incoming webhooks from Polar.sh. It immediately triages the event, acting only on the `order.paid` signal.
+2.  **Intelligent Routing:** The router inspects the `fulfillment_id` embedded in the webhook's metadata. This ID acts as the "map" to the correct destination.
+    *   An ID prefixed with `guy-fawkes-` is routed to the `RevengeMoney` fortress.
+    *   An ID prefixed with `eggplant-method-` is routed to the `Eggplant Method` fortress.
+3.  **Secure Forwarding:** Once the destination is determined, `service-connector` forges a new, standardized `FULFILLMENT_REQUEST`. This request is then dispatched to the target's private webhook URL, authenticated with a shared secret bearer token.
+4.  **Diagnostic Logging:** The fortress maintains a detailed log of its operations. It makes a critical distinction between a successful hand-off to an upstream service (a `200 OK` or `201 Created` response) and a `CRITICAL_UPSTREAM_FAILURE`, which is logged with high severity for immediate analysis.
 
-*   `POLAR_WEBHOOK_SECRET`: The secret used to verify incoming webhooks from Polar.sh.
-*   `REVENGE_MONEY_WEBHOOK_URL`: The full webhook URL for the upstream `RevengeMoney` service.
-*   `REVENGE_MONEY_INTERNAL_SECRET_KEY`: The shared secret (bearer token) for authenticating with `RevengeMoney`.
-*   `EGGPLANT_METHOD_WEBHOOK_URL`: The full webhook URL for the upstream `Eggplant Method` service.
-*   `EGGPLANT_METHOD_INTERNAL_SECRET_KEY`: The shared secret (bearer token) for authenticating with `Eggplant Method`.
+## III. Configuration & Deployment
 
-## Getting Started
+To function, `service-connector` requires five environment variables. A template is available in the `.env.example` file.
 
-First, install the dependencies:
-```bash
-npm install
-```
+*   `POLAR_WEBHOOK_SECRET`: Used to verify the authenticity of incoming Polar.sh webhooks.
+*   `REVENGE_MONEY_WEBHOOK_URL`: The private webhook URL for the `RevengeMoney` fortress.
+*   `REVENGE_MONEY_INTERNAL_SECRET_KEY`: The shared secret used to authenticate with `RevengeMoney`.
+*   `EGGPLANT_METHOD_WEBHOOK_URL`: The private webhook URL for the `Eggplant Method` fortress.
+*   `EGGPLANT_METHOD_INTERNAL_SECRET_KEY`: The shared secret used to authenticate with `Eggplant Method`.
 
-Next, create a `.env.local` file by copying the example and filling in the required values:
-```bash
-cp .env.example .env.local
-```
+### Local Development
 
-Finally, run the development server:
+1.  **Install Dependencies:**
+    ```bash
+    npm install
+    ```
 
-```bash
-npm run dev
-```
+2.  **Configure Environment:**
+    Create a `.env.local` file from the template.
+    ```bash
+    cp .env.example .env.local
+    ```
+    Populate the file with the necessary secrets.
 
-The service will be running on `http://localhost:3000`, with the webhook endpoint available at `http://localhost:3000/api/polar-webhook`.
+3.  **Run the Server:**
+    ```bash
+    npm run dev
+    ```
+
+The service will be available at `http://localhost:3000`.
